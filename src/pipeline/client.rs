@@ -64,11 +64,11 @@ where
 {
     type Error = SpawnError<NT::MakeError>;
     type Response = Client<NT::Transport, Error<NT::Transport, Request>, Request>;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = impl Future<Output = Result<Self::Response, Self::Error>> + Send;
 
     fn call(&mut self, target: Target) -> Self::Future {
         let maker = self.t_maker.make_transport(target);
-        Box::pin(async move { Ok(Client::new(maker.await.map_err(SpawnError::Inner)?)) })
+        async move { Ok(Client::new(maker.await.map_err(SpawnError::Inner)?)) }
     }
 
     fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
@@ -320,7 +320,7 @@ where
 {
     type Response = T::Ok;
     type Error = E;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = impl Future<Output = Result<Self::Response, Self::Error>> + Send;
 
     fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), E>> {
         Poll::Ready(ready!(self.mediator.poll_ready(cx)).map_err(|_| E::from(Error::ClientDropped)))
@@ -335,7 +335,7 @@ where
         event!(span, Level::TRACE, "issuing request");
         let req = ClientRequest { req, span, res: tx };
         let r = self.mediator.try_send(req);
-        Box::pin(async move {
+        async move {
             match r {
                 Ok(()) => match rx.await {
                     Ok(r) => {
@@ -347,7 +347,7 @@ where
                 },
                 Err(_) => Err(E::from(Error::TransportFull)),
             }
-        })
+        }
     }
 }
 
